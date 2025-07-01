@@ -14,7 +14,6 @@ set(Include_Dirs
 
 set(Application_Src
     ${CMAKE_SOURCE_DIR}/Core/Src/main.c
-    ${CMAKE_SOURCE_DIR}/Core/Src/delay.c
     ${CMAKE_SOURCE_DIR}/Core/Src/stm32f10x_it.c
     ${CMAKE_SOURCE_DIR}/Core/Src/core_cm3.c
     ${CMAKE_SOURCE_DIR}/startup_stm32f103xb.s

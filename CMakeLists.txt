@@ -47,11 +47,16 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    User/Src/main.c
+    User/Src/delay.c
+    User/Driver/Src/OLED.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    User/Inc
+    User/Driver/Inc
 )
 
 # Add project symbols (macros)
