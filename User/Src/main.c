@@ -5,79 +5,59 @@
 #include "stm32f10x.h"
 #include "OLED.h"
 
-static int16_t tmp;
-int16_t num;
-int16_t count;
+uint16_t num;
 
-void Encoder_Init() {
-    // GPIO
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-    GPIO_InitTypeDef GPIO_InitStructure;
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
+// Tim2
+void Timer_Init(void) {
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
-    // AFIO
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource0);
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOB, GPIO_PinSource1);
+    // 内部时钟, 可以省略（上电后定时器默认使用内部时钟）
+    TIM_InternalClockConfig(TIM2);
 
-    // EXTI
-    EXTI_InitTypeDef EXTI_InitStructure;
-    EXTI_InitStructure.EXTI_Line = EXTI_Line0 | EXTI_Line1;
-    EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;
-    EXTI_InitStructure.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStructure);
+    // 时基单元
+    TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+    TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1; // 时钟分频
+    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; // 计数模式
+    TIM_TimeBaseStructure.TIM_Period = 10000 - 1;       // 周期，在10K的计数频率下记10000个数就是1s
+    TIM_TimeBaseStructure.TIM_Prescaler = 7200 - 1;     // 预分频， 这里是对72M进行7200分频，得到10K的计数频率
+    TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;    // 重复计数器，高级定时器才有
+    TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
+
+    // 使能计数中断
+    TIM_ClearFlag(TIM2, TIM_FLAG_Update);   // 避免初始化完就进入中断
+    TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
 
     // NVIC
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+
     NVIC_InitTypeDef NVIC_InitStructure;
-    NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannel = TIM2_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
-    NVIC_Init(&NVIC_InitStructure);
-
-    NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
     NVIC_Init(&NVIC_InitStructure);
-}
 
-int16_t Encoder_GetCount() {
-    tmp = count;
-    count = 0;
-    return tmp;
+    // 启动定时器
+    TIM_Cmd(TIM2, ENABLE);
 }
 
 void Main() {
-    Encoder_Init();
     OLED_Init();
+    Timer_Init();
     OLED_ShowString(1,1, "Num:");
     while (1)
     {
-        num += Encoder_GetCount();
-        OLED_ShowNum(1,5, num, 5);
+        OLED_ShowNum(1, 5, num, 5);
+        OLED_ShowNum(2,5, TIM_GetCounter(TIM2), 5); // 计数器值
     }
 }
 
-void EXTI0_IRQHandler(void) {
-    if (EXTI_GetITStatus(EXTI_Line0) == SET) {
-        if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_1) == 0) {
-            count--;
-        }
-        EXTI_ClearITPendingBit(EXTI_Line0);
-    }
-}
-
-void EXTI1_IRQHandler(void) {
-    if (EXTI_GetITStatus(EXTI_Line1) == SET) {
-        if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_0) == 0) {
-            count++;
-        }
-        EXTI_ClearITPendingBit(EXTI_Line1);
+void TIM2_IRQHandler(void) {
+    // 获取中断标志位
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) == SET) {
+        num++;
+        // 清除标志位
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
     }
 }
