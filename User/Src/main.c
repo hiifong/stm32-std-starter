@@ -5,12 +5,12 @@
 #include "delay.h"
 #include "stm32f10x.h"
 #include "OLED.h"
+#include "key.h"
 
 #define BUTTON_Pin GPIO_Pin_1
 #define BUTTON_Port GPIOB
 
-uint8_t i;
-uint8_t angle;
+int8_t speed;
 
 void PWM_Init(void) {
     // 时钟使能
@@ -19,7 +19,7 @@ void PWM_Init(void) {
     // GPIO
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
     GPIO_InitTypeDef GPIO_InitStructure;
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP; // 复用推挽输出
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
@@ -31,8 +31,8 @@ void PWM_Init(void) {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
     TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1; // 时钟分频
     TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; // 计数模式
-    TIM_TimeBaseStructure.TIM_Period = 20000 - 1; // 周期ARR，在10K的计数频率下记10000个数就是1s
-    TIM_TimeBaseStructure.TIM_Prescaler = 72 - 1; // 预分频PSC， 这里是对72M进行7200分频，得到10K的计数频率
+    TIM_TimeBaseStructure.TIM_Period = 100 - 1; // 周期ARR，在10K的计数频率下记10000个数就是1s
+    TIM_TimeBaseStructure.TIM_Prescaler = 36 - 1; // 预分频PSC， 这里是对72M进行7200分频，得到10K的计数频率
     TIM_TimeBaseStructure.TIM_RepetitionCounter = 0; // 重复计数器，高级定时器才有
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
 
@@ -43,59 +43,52 @@ void PWM_Init(void) {
     TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
     TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
     TIM_OCInitStructure.TIM_Pulse = 0; // 脉冲，用来设置CCR寄存器值
-    TIM_OC2Init(TIM2, &TIM_OCInitStructure);
+    TIM_OC3Init(TIM2, &TIM_OCInitStructure);
 
     // 启动定时器
     TIM_Cmd(TIM2, ENABLE);
 }
 
-void PWM_SetCompare2(uint16_t compare) {
-    TIM_SetCompare2(TIM2, compare);
+void PWM_SetCompare3(uint16_t compare) {
+    TIM_SetCompare3(TIM2, compare);
 }
 
-void Servo_Init(void) {
+void Motor_Init(void) {
+    // GPIO
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4 | GPIO_Pin_5;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP; // 推挽输出
+    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
     PWM_Init();
 }
 
-// 0    500
-// 180  2500
-void Servo_SetAngle(float angle) {
-    PWM_SetCompare2(angle / 180 * 2000 + 500);
-}
-
-void Button_Init(void) {
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-    GPIO_InitTypeDef GPIO_InitStructure;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_InitStructure.GPIO_Pin = BUTTON_Pin;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(BUTTON_Port, &GPIO_InitStructure);
-}
-
-uint8_t Button_Pressed(void) {
-    uint8_t pressed = 0;
-    if (GPIO_ReadInputDataBit(BUTTON_Port, BUTTON_Pin) == 0) {
-        Delay_ms(50);
-        if (GPIO_ReadInputDataBit(BUTTON_Port, BUTTON_Pin) == 0) {
-            pressed = 1;
-        }
+void Motor_SetSpeed(int8_t speed) {
+    if (speed >= 0) {
+        GPIO_SetBits(GPIOA, GPIO_Pin_4);
+        GPIO_ResetBits(GPIOA, GPIO_Pin_5);
+        PWM_SetCompare3(speed);
+    } else {
+        GPIO_SetBits(GPIOA, GPIO_Pin_5);
+        GPIO_ResetBits(GPIOA, GPIO_Pin_4);
+        PWM_SetCompare3(-speed);
     }
-    return pressed;
 }
 
 void Main() {
     OLED_Init();
-    Button_Init();
-    Servo_Init();
-    OLED_ShowString(1, 1, "Angle:");
+    Key_Init();
+    Motor_Init();
+    OLED_ShowString(1, 1, "Speed:");
     while (1) {
-        if (Button_Pressed()) {
-            angle += 30;
-            if (angle > 180) {
-                angle = 0;
+        if (Key_GetNum() == 1) {
+            speed += 20;
+            if (speed > 100) {
+                speed = -100;
             }
         }
-        Servo_SetAngle(angle);
-        OLED_ShowNum(1, 7, angle, 3);
+        Motor_SetSpeed(speed);
+        OLED_ShowSignedNum(1, 7, speed, 3);
     }
 }

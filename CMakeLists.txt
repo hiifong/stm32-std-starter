@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     User/Src/main.c
     User/Src/delay.c
     User/Driver/Src/OLED.c
+    User/Driver/Src/key.c
 )
 
 # Add include paths
