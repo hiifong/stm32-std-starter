@@ -5,6 +5,6 @@
 #ifndef __USER_MAIN_H
 #define __USER_MAIN_H
 
-void Main(void);
+void AppMain(void);
 
 #endif //__USER_MAIN_H

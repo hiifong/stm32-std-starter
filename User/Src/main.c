@@ -64,7 +64,7 @@ void Servo_SetAngle(float angle) {
     PWM_SetCompare2(angle / 180 * 2000 + 500);
 }
 
-void Main() {
+void AppMain() {
     OLED_Init();
     Key_Init();
     Servo_Init();
